@@ -2,12 +2,13 @@
 __pycache__/
 *.py[cod]
 *$py.class
+CLAUDE.md
 
 # Virtual environment
 .venv/
 venv/
 env/
-.conda/
+.conda
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
