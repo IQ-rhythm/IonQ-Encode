@@ -1,0 +1,85 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+env/
+.conda/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs and debug
+*.log
+*.out
+*.err
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+*.hypothesis/
+.pytest_cache/
+
+# Data & results
+data/raw/
+data/processed/
+results/logs/
+results/plots/
+results/reports/
+
+# Temporary or large files
+*.h5
+*.hdf5
+*.npz
+*.npy
+*.pkl
+*.ckpt
+*.pth
+*.pt
+
+# Editor / OS specific
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Python compiled objects
+*.so
+*.dylib
+
+# Environment variables / secrets
+.env
+*.secret
+*.json
+
+# IonQ / hardware submission logs
+ionq_jobs/
+hardware_runs/
