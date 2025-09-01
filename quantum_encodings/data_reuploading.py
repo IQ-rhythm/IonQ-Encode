@@ -79,6 +79,10 @@ def _dru_layer(inputs, layer_weights, n_qubits: int, layer_idx: int) -> None:
         n_qubits (int): Number of qubits
         layer_idx (int): Index of current layer
     """
+    # Validate weight dimensions
+    if len(layer_weights) != n_qubits:
+        raise IndexError(f"Expected {n_qubits} weights, got {len(layer_weights)}")
+    
     # Data injection - re-upload input features
     for i in range(min(len(inputs), n_qubits)):
         qml.RY(inputs[i], wires=i)

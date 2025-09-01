@@ -160,7 +160,7 @@ class TestDRUCircuitStructure:
         
         # Extract device from QNode
         device = circuit.device
-        assert device.num_wires == n_qubits
+        assert len(device.wires) == n_qubits
     
     def test_input_dimension_matching(self):
         """Test circuit handles input dimensions correctly."""
