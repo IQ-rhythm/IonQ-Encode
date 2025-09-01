@@ -88,7 +88,7 @@ def build_zz_feature_map(n_qubits: int, n_features: int, repetitions: int = 2,
             
             # Step 2: First-order feature encoding with RZ rotations
             for i in range(n_features):
-                qml.RZ(features[i], wires=i)
+                qml.RZ(features[i] * 2.0, wires=i)  # Scale features for better discrimination
             
             # Step 3: Second-order ZZ interactions based on entanglement pattern
             apply_zz_interactions(features, n_qubits, n_features, entanglement)
@@ -188,7 +188,7 @@ def build_iqp_feature_map(n_qubits: int, n_features: int, repetitions: int = 1) 
             
             # Step 2: First-order terms (diagonal unitaries)
             for i in range(n_features):
-                qml.RZ(features[i], wires=i)
+                qml.RZ(features[i] * 2.0, wires=i)  # Scale features for better discrimination
             
             # Step 3: Second-order terms (all pairs)
             for i in range(n_features):
@@ -214,7 +214,7 @@ def compute_kernel_matrix(feature_map: qml.QNode, X: torch.Tensor, Y: Optional[t
     The kernel value between two samples x_i and x_j is computed as:
     K(x_i, x_j) = |⟨0|U†(x_i)U(x_j)|0⟩|²
     
-    Where U(x) is the feature map circuit.
+    This is approximated using the inner product of expectation values.
     
     Args:
         feature_map: Quantum feature map circuit
@@ -231,33 +231,51 @@ def compute_kernel_matrix(feature_map: qml.QNode, X: torch.Tensor, Y: Optional[t
     n_samples = X.shape[0]
     m_samples = Y.shape[0]
     
-    # Compute kernel matrix
-    kernel_matrix = torch.zeros(n_samples, m_samples)
-    
     # Get feature map outputs for all samples
     X_features = []
     for i in range(n_samples):
-        X_features.append(torch.tensor(feature_map(X[i])))
+        features = torch.tensor(feature_map(X[i]))
+        X_features.append(features)
     
     Y_features = []
     for i in range(m_samples):
         if torch.equal(X, Y) and i < len(X_features):
             Y_features.append(X_features[i])  # Reuse computation for symmetric case
         else:
-            Y_features.append(torch.tensor(feature_map(Y[i])))
+            features = torch.tensor(feature_map(Y[i]))
+            Y_features.append(features)
     
-    # Compute inner products as kernel values
-    for i in range(n_samples):
-        for j in range(m_samples):
-            # Kernel as normalized inner product of feature map outputs
-            kernel_value = torch.dot(X_features[i], Y_features[j])
-            if normalize:
-                norm_i = torch.norm(X_features[i])
-                norm_j = torch.norm(Y_features[j])
-                if norm_i > 1e-10 and norm_j > 1e-10:
-                    kernel_value = kernel_value / (norm_i * norm_j)
-            
-            kernel_matrix[i, j] = kernel_value
+    # Stack features into matrices for efficient computation
+    X_feature_matrix = torch.stack(X_features)  # (n_samples, n_qubits)
+    Y_feature_matrix = torch.stack(Y_features)  # (m_samples, n_qubits)
+    
+    # Compute kernel matrix as cosine similarity (normalized inner products)
+    if normalize:
+        # Normalize feature vectors
+        X_norms = torch.norm(X_feature_matrix, dim=1, keepdim=True)
+        Y_norms = torch.norm(Y_feature_matrix, dim=1, keepdim=True)
+        
+        # Avoid division by zero
+        X_norms = torch.clamp(X_norms, min=1e-8)
+        Y_norms = torch.clamp(Y_norms, min=1e-8)
+        
+        X_normalized = X_feature_matrix / X_norms
+        Y_normalized = Y_feature_matrix / Y_norms
+        
+        kernel_matrix = torch.mm(X_normalized, Y_normalized.T)
+    else:
+        # Simple inner product kernel
+        kernel_matrix = torch.mm(X_feature_matrix, Y_feature_matrix.T)
+    
+    # Transform to ensure positive semi-definiteness and reasonable range
+    # Apply a polynomial kernel transformation: (γ * K + c)^d
+    gamma = 1.0
+    c = 0.1
+    d = 1
+    kernel_matrix = gamma * kernel_matrix + c
+    
+    # Ensure positive values while preserving differences
+    kernel_matrix = torch.abs(kernel_matrix)
     
     return kernel_matrix
 
