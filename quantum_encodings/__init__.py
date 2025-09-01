@@ -16,6 +16,18 @@ from .angle_encoding import (
     AngleEncodingClassifier
 )
 
+from .amplitude_encoding import (
+    normalize_vector,
+    pad_or_truncate_vector,
+    validate_amplitude_encoding_size,
+    build_exact_amplitude_classifier,
+    build_approximate_amplitude_classifier,
+    get_amplitude_weights_shape,
+    initialize_amplitude_weights,
+    create_amplitude_model,
+    AmplitudeEncodingClassifier
+)
+
 __all__ = [
     "build_ae_classifier",
     "encode_features", 
@@ -24,5 +36,14 @@ __all__ = [
     "get_ae_weights_shape",
     "initialize_ae_weights",
     "create_ae_model",
-    "AngleEncodingClassifier"
+    "AngleEncodingClassifier",
+    "normalize_vector",
+    "pad_or_truncate_vector",
+    "validate_amplitude_encoding_size",
+    "build_exact_amplitude_classifier",
+    "build_approximate_amplitude_classifier",
+    "get_amplitude_weights_shape",
+    "initialize_amplitude_weights",
+    "create_amplitude_model",
+    "AmplitudeEncodingClassifier"
 ]
