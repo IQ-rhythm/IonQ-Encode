@@ -28,6 +28,17 @@ from .amplitude_encoding import (
     AmplitudeEncodingClassifier
 )
 
+from .hybrid_encoding import (
+    split_features_for_hybrid,
+    validate_hybrid_encoding_params,
+    build_hybrid_classifier,
+    get_hybrid_weights_shape,
+    initialize_hybrid_weights,
+    benchmark_hybrid_circuit,
+    create_hybrid_model,
+    HybridEncodingClassifier
+)
+
 __all__ = [
     "build_ae_classifier",
     "encode_features", 
@@ -45,5 +56,13 @@ __all__ = [
     "get_amplitude_weights_shape",
     "initialize_amplitude_weights",
     "create_amplitude_model",
-    "AmplitudeEncodingClassifier"
+    "AmplitudeEncodingClassifier",
+    "split_features_for_hybrid",
+    "validate_hybrid_encoding_params",
+    "build_hybrid_classifier",
+    "get_hybrid_weights_shape",
+    "initialize_hybrid_weights",
+    "benchmark_hybrid_circuit",
+    "create_hybrid_model",
+    "HybridEncodingClassifier"
 ]
