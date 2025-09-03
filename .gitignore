@@ -83,3 +83,8 @@ Thumbs.db
 # IonQ / hardware submission logs
 ionq_jobs/
 hardware_runs/
+
+# MNIST preprocess results
+data/raw/
+data/processed/
+data/preprocess/verify-datasets.py
