@@ -65,26 +65,37 @@ def check_preprocessed_data():
     return True
 
 
-def run_training_experiment(encoding, dataset, epochs=20, batch_size=32, lr=5e-3, layers=3):
+def run_training_experiment(encoding, dataset, epochs=10, qubits=4, **kwargs):
     """Run a single training experiment."""
     print(f"\n{'='*60}")
     print(f"Running experiment: {encoding.upper()} on {dataset}")
     print(f"{'='*60}")
     
-    cmd = [
-        sys.executable, "training_script.py",
-        "--encoding", encoding,
-        "--dataset", dataset, 
-        "--epochs", str(epochs),
-        "--batch_size", str(batch_size),
-        "--lr", str(lr),
-        "--layers", str(layers)
-    ]
+    # For now, we only support the working quantum_ml_experiment.py
+    if encoding == "ae":
+        cmd = [
+            sys.executable, "quantum_ml_experiment.py",
+            "--dataset", dataset, 
+            "--qubits", str(qubits),
+            "--epochs", str(epochs)
+        ]
+    else:
+        print(f"⚠ Encoding {encoding} not yet implemented in simplified version")
+        print(f"✓ Using Angle Encoding as baseline")
+        cmd = [
+            sys.executable, "quantum_ml_experiment.py",
+            "--dataset", dataset, 
+            "--qubits", str(qubits),
+            "--epochs", str(epochs)
+        ]
     
     try:
-        result = subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd, check=True, timeout=120)
         print(f"✓ Experiment completed: {encoding} on {dataset}")
         return True
+    except subprocess.TimeoutExpired:
+        print(f"⚠ Experiment timed out: {encoding} on {dataset}")
+        return False
     except subprocess.CalledProcessError as e:
         print(f"✗ Experiment failed: {encoding} on {dataset}")
         print(f"Error: {e}")

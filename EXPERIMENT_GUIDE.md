@@ -12,15 +12,19 @@ python run_experiment.py --preprocess-only
 ### 2. Run a Simple Experiment
 ```bash
 # Angle Encoding on binary classification
-python run_experiment.py --encoding ae --dataset fashion_mnist_pca32_T2
+python run_experiment.py --encoding ae --dataset fashion_mnist_pca32_T2 --epochs 5
 
-# Data Re-uploading on 4-class classification  
-python run_experiment.py --encoding dru --dataset fashion_mnist_pca32_T4 --epochs 15
+# Direct usage of quantum ML experiment
+python quantum_ml_experiment.py --dataset fashion_mnist_pca32_T2 --qubits 4 --epochs 8
+
+# 4-class classification with more qubits
+python quantum_ml_experiment.py --dataset fashion_mnist_pca32_T4 --qubits 6 --epochs 10
 ```
 
-### 3. Run Comprehensive Benchmark
+### 3. Run Multiple Configurations  
 ```bash
-python run_experiment.py --benchmark
+# Compare different qubit counts
+python quantum_ml_experiment.py --comparison
 ```
 
 ## Available Encoding Methods
