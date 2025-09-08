@@ -27,16 +27,26 @@ python quantum_ml_experiment.py --dataset fashion_mnist_pca32_T4 --qubits 6 --ep
 python quantum_ml_experiment.py --comparison
 ```
 
-## Available Encoding Methods
+## Available Scripts
 
-| Method | Code | Description | Best Use Case |
-|--------|------|-------------|---------------|
-| Angle Encoding | `ae` | RY rotations, shallow circuits | Low-dimensional baseline |
-| Data Re-uploading | `dru` | Multi-layer data injection | Mid-scale expressivity |
-| Amplitude Encoding | `amp` | Direct state preparation | High-dimensional compression |
-| Hybrid Encoding | `hybrid` | Combined angle + amplitude | Multi-class balanced |
-| Kernel Feature Map | `kernel` | ZZ/IQP + SVM | Robust baseline |
-| Quantum Kitchen Sinks | `qks` | Random circuits + linear | Quick baseline |
+### Main Scripts
+
+| Script | Description | Usage |
+|--------|-------------|-------|
+| `quantum_ml_experiment.py` | Main working quantum ML training script | Direct execution with angle encoding |
+| `run_experiment.py` | Wrapper script for running experiments | Convenience interface |
+| `data/preprocess/preprocess-mnist.py` | Data preprocessing pipeline | Fashion-MNIST preprocessing |
+
+### Currently Implemented Encoding Methods
+
+| Method | Status | Description | Usage |
+|--------|--------|-------------|-------|
+| Angle Encoding | ✅ **Working** | RY rotations, practical 4-6 qubits | `python quantum_ml_experiment.py --qubits 4` |
+| Data Re-uploading | ⚠️ Planned | Multi-layer data injection | Future implementation |
+| Amplitude Encoding | ⚠️ Planned | Direct state preparation | Future implementation |
+| Hybrid Encoding | ⚠️ Planned | Combined encodings | Future implementation |
+| Kernel Feature Map | ⚠️ Planned | ZZ/IQP + SVM | Future implementation |
+| Quantum Kitchen Sinks | ⚠️ Planned | Random circuits | Future implementation |
 
 ## Available Datasets
 
@@ -50,17 +60,26 @@ python quantum_ml_experiment.py --comparison
 
 ## Example Experiments
 
-### Noiseless Environment Testing (Week 3)
+### Current Working Examples
 ```bash
-# Test all encodings on binary classification
-python run_experiment.py --encoding ae dru amp hybrid kernel qks --dataset fashion_mnist_pca32_T2 --epochs 20
+# Basic binary classification
+python quantum_ml_experiment.py --dataset fashion_mnist_pca32_T2 --qubits 4 --epochs 8
 
-# Compare PCA dimensions
-python run_experiment.py --encoding ae --dataset fashion_mnist_pca32_T2 fashion_mnist_pca64_T2 --epochs 15
+# 4-class classification with more qubits  
+python quantum_ml_experiment.py --dataset fashion_mnist_pca32_T4 --qubits 6 --epochs 10
 
-# Multi-class evaluation
-python run_experiment.py --encoding hybrid --dataset fashion_mnist_pca32_T4 --epochs 25
+# Using wrapper script
+python run_experiment.py --encoding ae --dataset fashion_mnist_pca32_T2 --epochs 5
+
+# Run comparison experiments
+python quantum_ml_experiment.py --comparison
 ```
+
+### Expected Results
+- **Test Accuracy**: ~48-52% on binary classification
+- **Training Time**: 30-50 seconds for 5-8 epochs
+- **Memory Usage**: < 1GB for 4-6 qubit circuits
+- **Output**: Saved to timestamped `results/` directories with plots and JSON reports
 
 ### Resource Analysis
 ```bash
