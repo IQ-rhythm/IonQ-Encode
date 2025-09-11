@@ -18,4 +18,4 @@ COPY . .
 RUN mkdir -p data/processed data/raw results config && \
     python prepare_data.py
 
-CMD ["python", "train.py", "--help"]
+CMD ["python", "run_experiments.py"]

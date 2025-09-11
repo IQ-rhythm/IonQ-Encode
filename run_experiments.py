@@ -15,31 +15,43 @@ def main():
     # Initialize trainer
     trainer = QuantumMLTrainer("config/training_config.yaml")
     
-    # Define experiment configurations
-    experiments = [
-        # Binary classification experiments (T2)
-        {
-            "name": "Angle Encoding - Binary (PCA32)",
-            "encoding": "angle",
-            "dataset": "fashion_mnist_pca32_T2",
-            "n_qubits": 4,
-            "epochs": 5
-        },
-        {
-            "name": "Amplitude Encoding - Binary (PCA16)", 
-            "encoding": "amplitude",
-            "dataset": "fashion_mnist_pca16_T2",
-            "method": "exact",
-            "epochs": 3
-        },
-        {
-            "name": "Angle Encoding - 4-class (PCA32)",
-            "encoding": "angle", 
-            "dataset": "fashion_mnist_pca32_T4",
-            "n_qubits": 6,
-            "epochs": 5
-        }
+    # Define all encoding methods and datasets to test
+    encodings = ["angle", "amplitude", "hybrid", "kernel", "qks"]
+    datasets = [
+        "fashion_mnist_pca16_T2", "fashion_mnist_pca32_T2", "fashion_mnist_pca64_T2",
+        "fashion_mnist_pca16_T4", "fashion_mnist_pca32_T4", "fashion_mnist_pca64_T4",
+        "fashion_mnist_pca16_T10", "fashion_mnist_pca32_T10", "fashion_mnist_pca64_T10"
     ]
+    
+    experiments = []
+    
+    # Generate all combinations
+    for encoding in encodings:
+        for dataset in datasets:
+            # Configure based on encoding and dataset
+            exp_config = {
+                "name": f"{encoding.upper()} - {dataset}",
+                "encoding": encoding,
+                "dataset": dataset,
+                "epochs": 3  # Short epochs for comprehensive testing
+            }
+            
+            # Encoding-specific configurations
+            if encoding == "angle":
+                exp_config["n_qubits"] = 4 if "T2" in dataset else (6 if "T4" in dataset else 8)
+            elif encoding == "amplitude":
+                exp_config["method"] = "exact"
+                exp_config["epochs"] = 2  # Amplitude encoding is slower
+            elif encoding == "hybrid":
+                exp_config["n_qubits"] = 4 if "T2" in dataset else (6 if "T4" in dataset else 8)
+            elif encoding == "kernel":
+                exp_config["map_type"] = "zz"
+                exp_config["repetitions"] = 2
+            elif encoding == "qks":
+                exp_config["qks_features"] = 32 if "pca32" in dataset else (16 if "pca16" in dataset else 64)
+                exp_config["n_qubits"] = 4
+            
+            experiments.append(exp_config)
     
     results = []
     total_start_time = time.time()
@@ -93,17 +105,23 @@ def main():
     print(f"Total time: {total_time:.1f} seconds")
     print()
     
-    for result in results:
-        status_symbol = "✓" if result['status'] == 'success' else "✗"
-        print(f"{status_symbol} {result['name']:35} | "
-              f"Acc: {result['test_accuracy']:.3f} | "
-              f"Time: {result['training_time']:4.1f}s | "
-              f"{result['dataset']}")
+    # Print results organized by encoding method
+    success_count = sum(1 for r in results if r['status'] == 'success')
+    print(f"Successful experiments: {success_count}/{len(experiments)}")
+    print()
     
-    print(f"\nResults saved in results/ directory")
-    print("Each experiment has its own timestamped folder with:")
-    print("- report.json: Detailed experiment metadata and results")
-    print("- training_curves.png: Training and validation accuracy plots")
+    for encoding in encodings:
+        print(f"{encoding.upper()} ENCODING:")
+        encoding_results = [r for r in results if r['encoding'] == encoding]
+        
+        for result in encoding_results:
+            status_symbol = "✓" if result['status'] == 'success' else "✗"
+            dataset_short = result['dataset'].replace('fashion_mnist_', '')
+            print(f"  {status_symbol} {dataset_short:12} | Acc: {result['test_accuracy']:.3f} | Time: {result['training_time']:4.1f}s")
+        print()
+    
+    print(f"All results saved in results/ directory")
+    print("Each experiment has its own timestamped folder with detailed reports and plots")
 
 if __name__ == "__main__":
     main()

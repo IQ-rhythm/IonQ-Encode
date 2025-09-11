@@ -8,10 +8,9 @@ services:
       - ./results:/app/results
     environment:
       - ENVIRONMENT=noiseless
-    tty: true
-    stdin_open: true
-    command: tail -f /dev/null
-
-networks:
-  default:
-    driver: bridge
+      - PYTHONPATH=/app
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
