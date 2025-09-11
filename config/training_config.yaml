@@ -1,0 +1,35 @@
+data:
+  processed_dir: "data/processed"
+  default_dataset: "fashion_mnist_pca32_T2"
+  validation_split: 0.1
+  random_state: 42
+  stratify: true
+  # Available Fashion-MNIST datasets:
+  # - fashion_mnist_pca16_T2, fashion_mnist_pca32_T2, fashion_mnist_pca64_T2 (binary classification)
+  # - fashion_mnist_pca16_T4, fashion_mnist_pca32_T4, fashion_mnist_pca64_T4 (4-class classification)  
+  # - fashion_mnist_pca16_T10, fashion_mnist_pca32_T10, fashion_mnist_pca64_T10 (10-class classification)
+
+circuit:
+  default_n_qubits: 4
+  default_n_layers: 2
+  target_feature_dim: 4
+
+training:
+  epochs: 10
+  batch_size: 32
+  max_batches_per_epoch: 10
+  evaluation_frequency: 2
+  train_eval_samples: 100
+
+optimizer:
+  type: "adam"
+  learning_rate: 0.01
+
+weights:
+  initialization_scale: 0.1
+
+output:
+  results_dir: "results"
+  save_plots: true
+  save_reports: true
+  plot_dpi: 150
