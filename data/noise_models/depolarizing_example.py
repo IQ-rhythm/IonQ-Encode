@@ -1,3 +1,5 @@
+#단일 큐빗에 qml.DepolarizingChannel(p)을 직접 삽입
+
 import pennylane as qml
 from pennylane import numpy as np
 
