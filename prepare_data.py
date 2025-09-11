@@ -80,12 +80,8 @@ def main():
             print(f"  ... and {len(missing_files) - 5} more")
         print()
         
-        response = input("Would you like to run preprocessing now? (y/n): ").lower().strip()
-        if response in ['y', 'yes']:
-            return run_preprocessing()
-        else:
-            print("Please run preprocessing before training experiments.")
-            return False
+        print("Running preprocessing automatically...")
+        return run_preprocessing()
 
 if __name__ == "__main__":
     success = main()
