@@ -5,7 +5,7 @@ from readout_error import add_readout_error
 dev = qml.device("default.mixed", wires=2, shots=512)
 
 @qml.qnode(dev)
-def ionq_like_circuit(theta, p1q=0.001, p2q=0.02):
+def ionq_like_circuit(theta, p1q=0.001, p2q=0.02): #depolarizig 확률(p1q, p2q)
     # 1-qubit gate with depolarizing
     qml.RX(theta, wires=0)
     qml.DepolarizingChannel(p1q, wires=0)
