@@ -44,6 +44,9 @@ def build_model(args, n_features):
 def train(args):
     # === Load dataset ===
     x_train, y_train, x_test, y_test = load_npz_dataset(args.dataset)
+    # For quick testing, you can uncomment the following lines to use a smaller subset
+    # x_train, y_train = x_train[:100], y_train[:100]
+    # x_test, y_test   = x_test[:20], y_test[:20]
 
     # Only binary classification supported for now
     if len(torch.unique(y_train)) > 2:
@@ -55,6 +58,7 @@ def train(args):
 
     # === Build model ===
     n_features = x_train.shape[1]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(args, n_features)
     weights = model.get_params().clone().detach().requires_grad_(True)
 
@@ -72,6 +76,7 @@ def train(args):
         epoch_loss, all_logits, all_labels = 0, [], []
 
         for x_batch, y_batch in train_loader:
+            x_batch, y_batch = x_batch.to(device), y_batch.to(device)
             optimizer.zero_grad()
             logits = model(x_batch).squeeze()
             loss = loss_fn(logits, y_batch)
