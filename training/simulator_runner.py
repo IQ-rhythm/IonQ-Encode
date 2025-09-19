@@ -7,7 +7,7 @@ from quantum_encodings.angle_encoding import AngleEncodingClassifier
 from quantum_encodings.amplitude_encoding import AmplitudeEncodingClassifier
 from quantum_encodings.hybrid_encoding import HybridEncodingClassifier
 from quantum_encodings.data_reuploading import DRUClassifier
-from quantum_encodings.qks import QKSClassifier
+from quantum_encodings.qks import QKSClassifier 
 from quantum_encodings.kernel_feature_map import KernelFeatureMapClassifier
 from training.utils import bce_loss_with_logits, compute_metrics, save_log
 
@@ -39,29 +39,37 @@ def build_model(args, n_features):
             n_layers=args.n_layers,
             entanglement_strategy="linear"
         )
-    # elif encoder_name == "qks":
-        # QKS: Quantum Kitchen Sink
-        # n_qubits = n_features
-        # return EnsembleQKS(n_qubits=n_qubits, n_layers=args.n_layers, n_features=n_features)
-    # elif encoder_name == "dru":
-    #     # DRU: Data Re-Uploading
-    #     n_qubits = n_features
-    #     return DRUClassifier(n_qubits=n_qubits, n_layers=args.n_layers)
+    elif encoder_name == "dru":
+        return DRUClassifier(n_features=n_features, n_layers=args.n_layers)
+    elif encoder_name == "qks":  
+        return QKSClassifier(
+            n_layers=args.n_layers,
+            n_features=n_features,
+            entanglement_pattern="linear",
+            seed=42,
+        )
+    elif encoder_name == "kfm":
+        return KernelFeatureMapClassifier(
+            n_features=n_features,
+            feature_map_type=args.feature_map_type,
+            repetitions=args.n_layers,
+            entanglement=args.entanglement,
+            seed=42
+        )
     else:
         raise ValueError(f"Unknown encoder: {encoder_name}")
-
 
 
 def train(args):
     # === Load dataset ===
     x_train, y_train, x_test, y_test = load_npz_dataset(args.dataset)
-    # For quick testing, you can uncomment the following lines to use a smaller subset
-    x_train, y_train = x_train[:100], y_train[:100]
-    x_test, y_test   = x_test[:20], y_test[:20]
+    # For quick testing, small subset
+    # x_train, y_train = x_train[:100], y_train[:100]
+    # x_test, y_test = x_test[:20], y_test[:20]
 
-    # Only binary classification supported for now
+    # Only binary classification supported
     if len(torch.unique(y_train)) > 2:
-        raise ValueError("Only binary classification is supported in this pipeline.")
+        raise ValueError("Only binary classification is supported.")
 
     # Wrap datasets
     train_loader = DataLoader(TensorDataset(x_train, y_train), batch_size=args.batch_size, shuffle=True)
@@ -71,9 +79,13 @@ def train(args):
     n_features = x_train.shape[1]
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(args, n_features)
-    weights = model.get_params().clone().detach().requires_grad_(True)
 
-    optimizer = torch.optim.Adam([weights], lr=args.lr)
+    if hasattr(model, "weights"):
+        model.weights = model.weights.to(device)
+        optimizer = torch.optim.Adam([model.weights], lr=args.lr)
+    else:
+        model = model.to(device)
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     loss_fn = bce_loss_with_logits()
 
     logs = {"train_loss": [], "train_acc": [], "train_f1": [],
@@ -81,8 +93,10 @@ def train(args):
 
     # === Training loop ===
     for epoch in range(args.epochs):
-        model.set_params(weights)
-        model.weights.requires_grad_(True)
+        if hasattr(model, "train"):
+            model.train()
+        if hasattr(model, "weights"):
+            model.weights.requires_grad_(True)
 
         epoch_loss, all_logits, all_labels = 0, [], []
 
@@ -100,10 +114,13 @@ def train(args):
 
         train_metrics = compute_metrics(all_labels, all_logits)
 
-        # Validation (test set as proxy)
+        # Validation
         with torch.no_grad():
+            if hasattr(model, "eval"):
+                model.eval()
             val_logits, val_labels = [], []
             for x_batch, y_batch in test_loader:
+                x_batch, y_batch = x_batch.to(device), y_batch.to(device)
                 val_logits_batch = model(x_batch).squeeze()
                 val_logits.extend(val_logits_batch.cpu().numpy())
                 val_labels.extend(y_batch.cpu().numpy())
@@ -126,25 +143,24 @@ def train(args):
 
     # Save results
     save_log(logs, f"./results/logs/{args.encoder}_results.json")
-
     print("Training complete. Results saved to /results/logs/")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, required=True,
-                        help="Path to .npz dataset (e.g., data/processed/fashion_mnist_pca16_T2.npz)")
+    parser.add_argument("--dataset", type=str, required=True)
     parser.add_argument("--encoder", type=str, default="angle",
-                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid", "qks", "dru"],)
+                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid", "dru", "qks", "kfm"]) 
+    parser.add_argument("--feature_map_type", type=str, default="zz",
+                    choices=["zz", "iqp"], help="Kernel feature map type") 
+    parser.add_argument(
+        "--entanglement", type=str, default="linear",
+        help="Entanglement strategy for KernelFeatureMapClassifier"
+    )
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--n_layers", type=int, default=2)
-    parser.add_argument("--entanglement", type=str, default="linear",
-                        choices=["linear", "circular", "full"],
-                        help="Entanglement pattern for QKS and kernel encoders")
-    parser.add_argument("--repetitions", type=int, default=1,
-                        help="Number of repetitions for kernel feature maps")
     args = parser.parse_args()
 
     train(args)
