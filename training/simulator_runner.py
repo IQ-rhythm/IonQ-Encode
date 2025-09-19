@@ -6,6 +6,9 @@ from torch.utils.data import TensorDataset, DataLoader
 from quantum_encodings.angle_encoding import AngleEncodingClassifier
 from quantum_encodings.amplitude_encoding import AmplitudeEncodingClassifier
 from quantum_encodings.hybrid_encoding import HybridEncodingClassifier
+from quantum_encodings.data_reuploading import DRUClassifier
+from quantum_encodings.qks import QKSClassifier
+from quantum_encodings.kernel_feature_map import KernelFeatureMapClassifier
 from training.utils import bce_loss_with_logits, compute_metrics, save_log
 
 
@@ -28,8 +31,7 @@ def build_model(args, n_features):
     elif encoder_name == "amplitude_approx":
         return AmplitudeEncodingClassifier(n_features=n_features, n_layers=args.n_layers, method="approximate")
     elif encoder_name == "hybrid":
-        # 여기서 n_angle_features와 n_amplitude_log를 지정
-        n_angle_features = min(8, n_features)  # 예시: 8개 혹은 입력 차원에 맞게
+        n_angle_features = min(8, n_features)
         n_amplitude_log = int(np.ceil(np.log2(n_features - n_angle_features)))
         return HybridEncodingClassifier(
             n_angle_features=n_angle_features,
@@ -37,6 +39,21 @@ def build_model(args, n_features):
             n_layers=args.n_layers,
             entanglement_strategy="linear"
         )
+    elif encoder_name == "dru":
+        return DRUClassifier(n_features=n_features, n_layers=args.n_layers)
+    elif encoder_name == "qks":
+        entanglement_pattern = getattr(args, 'entanglement', 'linear')
+        return QKSClassifier(n_features=n_features, n_layers=args.n_layers, 
+                           entanglement_pattern=entanglement_pattern)
+    elif encoder_name == "kernel_zz":
+        repetitions = getattr(args, 'repetitions', 1)
+        entanglement = getattr(args, 'entanglement', 'linear')
+        return KernelFeatureMapClassifier(n_features=n_features, feature_map_type="zz",
+                                        repetitions=repetitions, entanglement=entanglement)
+    elif encoder_name == "kernel_iqp":
+        repetitions = getattr(args, 'repetitions', 1)
+        return KernelFeatureMapClassifier(n_features=n_features, feature_map_type="iqp",
+                                        repetitions=repetitions)
     else:
         raise ValueError(f"Unknown encoder: {encoder_name}")
 
@@ -124,11 +141,17 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, required=True,
                         help="Path to .npz dataset (e.g., data/processed/fashion_mnist_pca16_T2.npz)")
     parser.add_argument("--encoder", type=str, default="angle",
-                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid"])
+                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid", 
+                               "dru", "qks", "kernel_zz", "kernel_iqp"])
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--n_layers", type=int, default=2)
+    parser.add_argument("--entanglement", type=str, default="linear",
+                        choices=["linear", "circular", "full"],
+                        help="Entanglement pattern for QKS and kernel encoders")
+    parser.add_argument("--repetitions", type=int, default=1,
+                        help="Number of repetitions for kernel feature maps")
     args = parser.parse_args()
 
     train(args)
