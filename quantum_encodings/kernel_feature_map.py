@@ -491,3 +491,321 @@ def create_feature_map_model(feature_map_type: str, n_qubits: int, n_features: i
     )
     
     return feature_map, feature_map.complexity
+
+
+def build_kernel_classifier(n_qubits: int, n_features: int, feature_map_type: str = "zz",
+                           repetitions: int = 1, entanglement: str = "linear") -> qml.QNode:
+    """
+    Build a quantum kernel classifier adapted for QNN execution.
+    
+    This converts kernel feature maps into classifiers by:
+    1. Using the feature map circuit for encoding
+    2. Adding learnable variational parameters
+    3. Returning a single logit from the last qubit
+    
+    Args:
+        n_qubits: Number of qubits
+        n_features: Number of input features
+        feature_map_type: Type of feature map ("zz", "iqp")
+        repetitions: Number of repetitions
+        entanglement: Entanglement pattern
+    
+    Returns:
+        Quantum kernel classifier circuit
+    """
+    validate_feature_map_params(n_qubits, n_features, repetitions)
+    
+    device = qml.device("default.qubit", wires=n_qubits)
+    
+    @qml.qnode(device, interface="torch")
+    def kernel_classifier_circuit(features: torch.Tensor, weights: torch.Tensor) -> float:
+        """
+        Kernel classifier circuit.
+        
+        Args:
+            features: Input features
+            weights: Learnable variational parameters
+        
+        Returns:
+            Classification logit from Z expectation of last qubit
+        """
+        # Ensure features have correct length
+        if len(features) > n_features:
+            features = features[:n_features]
+        elif len(features) < n_features:
+            padding = torch.zeros(n_features - len(features))
+            features = torch.cat([features, padding])
+        
+        # Apply kernel feature map encoding
+        if feature_map_type.lower() == "zz":
+            apply_zz_kernel_encoding(features, weights, n_qubits, n_features, repetitions, entanglement)
+        elif feature_map_type.lower() == "iqp":
+            apply_iqp_kernel_encoding(features, weights, n_qubits, n_features, repetitions)
+        else:
+            raise ValueError(f"Unknown feature map type: {feature_map_type}")
+        
+        # Return classification logit from Z expectation of last qubit
+        return qml.expval(qml.PauliZ(n_qubits - 1))
+    
+    return kernel_classifier_circuit
+
+
+def apply_zz_kernel_encoding(features: torch.Tensor, weights: torch.Tensor,
+                            n_qubits: int, n_features: int, repetitions: int,
+                            entanglement: str = "linear") -> None:
+    """
+    Apply ZZ kernel encoding with learnable parameters.
+    
+    Args:
+        features: Input features
+        weights: Learnable parameters
+        n_qubits: Number of qubits
+        n_features: Number of features
+        repetitions: Number of repetitions
+        entanglement: Entanglement pattern
+    """
+    weight_idx = 0
+    
+    # Apply ZZ feature map with learnable parameters
+    for rep in range(repetitions):
+        # Step 1: Hadamard gates (first repetition only)
+        if rep == 0:
+            for i in range(n_qubits):
+                qml.Hadamard(wires=i)
+        
+        # Step 2: First-order feature encoding with learnable scaling
+        for i in range(n_features):
+            # Learnable scaling of feature encoding
+            scaling = weights[weight_idx] if weight_idx < len(weights) else 1.0
+            qml.RZ(features[i] * scaling, wires=i)
+            weight_idx += 1
+        
+        # Step 3: ZZ interactions with learnable parameters
+        apply_zz_interactions(features, n_qubits, n_features, entanglement)
+        
+        # Step 4: Learnable variational layer
+        for i in range(min(n_qubits, len(weights) - weight_idx)):
+            qml.RY(weights[weight_idx], wires=i)
+            weight_idx += 1
+            if weight_idx < len(weights):
+                qml.RZ(weights[weight_idx], wires=i)
+                weight_idx += 1
+
+
+def apply_iqp_kernel_encoding(features: torch.Tensor, weights: torch.Tensor,
+                             n_qubits: int, n_features: int, repetitions: int) -> None:
+    """
+    Apply IQP kernel encoding with learnable parameters.
+    
+    Args:
+        features: Input features
+        weights: Learnable parameters
+        n_qubits: Number of qubits
+        n_features: Number of features
+        repetitions: Number of repetitions
+    """
+    weight_idx = 0
+    
+    # Apply IQP feature map with learnable parameters
+    for rep in range(repetitions):
+        # Step 1: Hadamard gates (first repetition only)
+        if rep == 0:
+            for i in range(n_qubits):
+                qml.Hadamard(wires=i)
+        
+        # Step 2: First-order terms with learnable scaling
+        for i in range(n_features):
+            scaling = weights[weight_idx] if weight_idx < len(weights) else 1.0
+            qml.RZ(features[i] * scaling, wires=i)
+            weight_idx += 1
+        
+        # Step 3: Second-order terms (all pairs)
+        for i in range(n_features):
+            for j in range(i + 1, n_features):
+                if j < n_qubits:
+                    phi = features[i] * features[j]
+                    # ZZ interaction
+                    qml.CNOT(wires=[i, j])
+                    qml.RZ(phi, wires=j)
+                    qml.CNOT(wires=[i, j])
+        
+        # Step 4: Learnable variational layer
+        for i in range(min(n_qubits, (len(weights) - weight_idx) // 2)):
+            if weight_idx + 1 < len(weights):
+                qml.RY(weights[weight_idx], wires=i)
+                qml.RZ(weights[weight_idx + 1], wires=i)
+                weight_idx += 2
+
+
+def get_kernel_classifier_weights_shape(n_qubits: int, n_features: int, 
+                                       feature_map_type: str = "zz",
+                                       repetitions: int = 1) -> int:
+    """
+    Get the required number of weights for kernel classifier.
+    
+    Args:
+        n_qubits: Number of qubits
+        n_features: Number of features
+        feature_map_type: Type of feature map
+        repetitions: Number of repetitions
+    
+    Returns:
+        Number of required weights
+    """
+    if feature_map_type.lower() == "zz":
+        # Per repetition: n_features (scaling) + 2*n_qubits (variational RY+RZ)
+        weights_per_rep = n_features + 2 * n_qubits
+        return weights_per_rep * repetitions
+    elif feature_map_type.lower() == "iqp":
+        # Per repetition: n_features (scaling) + 2*n_qubits (variational RY+RZ)
+        weights_per_rep = n_features + 2 * n_qubits
+        return weights_per_rep * repetitions
+    else:
+        raise ValueError(f"Unknown feature map type: {feature_map_type}")
+
+
+def initialize_kernel_classifier_weights(n_qubits: int, n_features: int,
+                                        feature_map_type: str = "zz",
+                                        repetitions: int = 1,
+                                        seed: Optional[int] = None) -> torch.Tensor:
+    """
+    Initialize weights for kernel classifier.
+    
+    Args:
+        n_qubits: Number of qubits
+        n_features: Number of features
+        feature_map_type: Type of feature map
+        repetitions: Number of repetitions
+        seed: Random seed
+    
+    Returns:
+        Initialized weights
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+    
+    n_weights = get_kernel_classifier_weights_shape(n_qubits, n_features, feature_map_type, repetitions)
+    weights = torch.randn(n_weights) * (np.pi / 4)
+    weights.requires_grad_(True)
+    
+    return weights
+
+
+def create_kernel_classifier_model(n_features: int, feature_map_type: str = "zz",
+                                  repetitions: int = 1, entanglement: str = "linear") -> Tuple[qml.QNode, torch.Tensor]:
+    """
+    Create a complete kernel classifier model.
+    
+    Args:
+        n_features: Number of input features
+        feature_map_type: Type of feature map
+        repetitions: Number of repetitions
+        entanglement: Entanglement pattern
+    
+    Returns:
+        Tuple of (circuit, weights)
+    """
+    n_qubits = n_features
+    circuit = build_kernel_classifier(n_qubits, n_features, feature_map_type, repetitions, entanglement)
+    weights = initialize_kernel_classifier_weights(n_qubits, n_features, feature_map_type, repetitions)
+    
+    return circuit, weights
+
+
+class KernelFeatureMapClassifier:
+    """
+    A PyTorch-compatible wrapper for kernel feature map quantum classifier.
+    
+    This class adapts quantum kernel feature maps for supervised learning
+    by adding learnable variational parameters for gradient-based optimization.
+    
+    Attributes:
+        n_qubits (int): Number of qubits in the quantum circuit.
+        n_features (int): Number of input features.
+        feature_map_type (str): Type of feature map ("zz", "iqp").
+        repetitions (int): Number of repetitions.
+        entanglement (str): Entanglement pattern.
+        circuit (qml.QNode): The quantum circuit function.
+        weights (torch.Tensor): Trainable parameters.
+    """
+    
+    def __init__(self, n_features: int, feature_map_type: str = "zz",
+                 repetitions: int = 1, entanglement: str = "linear",
+                 seed: Optional[int] = None):
+        """
+        Initialize the kernel feature map classifier.
+        
+        Args:
+            n_features: Number of input features
+            feature_map_type: Type of feature map ("zz", "iqp")
+            repetitions: Number of repetitions
+            entanglement: Entanglement pattern
+            seed: Random seed for initialization
+        """
+        self.n_qubits = n_features
+        self.n_features = n_features
+        self.feature_map_type = feature_map_type.lower()
+        self.repetitions = repetitions
+        self.entanglement = entanglement
+        
+        self.circuit = build_kernel_classifier(n_features, n_features, feature_map_type, repetitions, entanglement)
+        self.weights = initialize_kernel_classifier_weights(n_features, n_features, feature_map_type, repetitions, seed)
+        
+        # Compute complexity metrics
+        self.complexity = get_feature_map_complexity(
+            feature_map_type, n_features, n_features, repetitions, entanglement
+        )
+    
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the kernel classifier circuit.
+        
+        Args:
+            features: Input features of shape (batch_size, n_features) or (n_features,)
+        
+        Returns:
+            Predictions of shape (batch_size,) or scalar for single samples
+        """
+        if len(features.shape) == 1:
+            # Single sample
+            return self.circuit(features, self.weights)
+        else:
+            # Batch processing
+            batch_size = features.shape[0]
+            predictions = torch.zeros(batch_size)
+            
+            for i in range(batch_size):
+                predictions[i] = self.circuit(features[i], self.weights)
+            
+            return predictions
+    
+    def __call__(self, features: torch.Tensor) -> torch.Tensor:
+        """Make the class callable."""
+        return self.forward(features)
+    
+    def get_params(self) -> torch.Tensor:
+        """Get the current weight parameters."""
+        return self.weights.detach().clone()
+    
+    def set_params(self, weights: torch.Tensor) -> None:
+        """Set the weight parameters."""
+        self.weights = weights.requires_grad_(True)
+    
+    def get_circuit_info(self) -> dict:
+        """
+        Get information about the quantum circuit.
+        
+        Returns:
+            dict: Dictionary containing circuit specifications.
+        """
+        return {
+            "n_qubits": self.n_qubits,
+            "n_features": self.n_features,
+            "n_parameters": len(self.weights),
+            "feature_map_type": self.feature_map_type.upper(),
+            "repetitions": self.repetitions,
+            "encoding_type": f"Kernel Feature Map ({self.feature_map_type.upper()}) with variational parameters",
+            "entanglement": f"{self.entanglement} pattern",
+            "variational_gates": "RY, RZ rotations",
+            "complexity_metrics": self.complexity
+        }
