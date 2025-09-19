@@ -46,7 +46,22 @@ from .kernel_feature_map import (
     compute_kernel_matrix,
     get_feature_map_complexity,
     QuantumKernelFeatureMap,
-    create_feature_map_model
+    create_feature_map_model,
+    build_kernel_classifier,
+    get_kernel_classifier_weights_shape,
+    initialize_kernel_classifier_weights,
+    create_kernel_classifier_model,
+    KernelFeatureMapClassifier
+)
+
+from .data_reuploading import (
+    build_dru_classifier,
+    initialize_dru_weights,
+    initialize_dru_weights_torch,
+    get_dru_weights_shape,
+    create_dru_model,
+    dru_feature_dimension,
+    DRUClassifier
 )
 
 from .qks import (
@@ -56,7 +71,12 @@ from .qks import (
     compute_qks_kernel_approximation,
     benchmark_qks_complexity,
     QuantumKitchenSinks,
-    EnsembleQKS
+    EnsembleQKS,
+    build_qks_classifier,
+    get_qks_weights_shape,
+    initialize_qks_weights,
+    create_qks_model,
+    QKSClassifier
 )
 
 __all__ = [
@@ -92,11 +112,28 @@ __all__ = [
     "get_feature_map_complexity",
     "QuantumKernelFeatureMap",
     "create_feature_map_model",
+    "build_dru_classifier",
+    "initialize_dru_weights",
+    "initialize_dru_weights_torch",
+    "get_dru_weights_shape",
+    "create_dru_model",
+    "dru_feature_dimension",
+    "DRUClassifier",
     "generate_random_parameters",
     "build_qks_circuit",
     "compute_qks_features",
     "compute_qks_kernel_approximation",
     "benchmark_qks_complexity",
     "QuantumKitchenSinks",
-    "EnsembleQKS"
+    "EnsembleQKS",
+    "build_qks_classifier",
+    "get_qks_weights_shape",
+    "initialize_qks_weights",
+    "create_qks_model",
+    "QKSClassifier",
+    "build_kernel_classifier",
+    "get_kernel_classifier_weights_shape",
+    "initialize_kernel_classifier_weights",
+    "create_kernel_classifier_model",
+    "KernelFeatureMapClassifier"
 ]

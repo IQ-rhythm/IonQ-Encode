@@ -7,8 +7,9 @@ combined with variational parameters and entanglement operations.
 """
 
 import pennylane as qml
+import torch
 import numpy as np
-from typing import Optional
+from typing import Optional, Tuple
 
 
 def build_dru_classifier(n_qubits: int, n_layers: int) -> qml.QNode:
@@ -42,7 +43,7 @@ def build_dru_classifier(n_qubits: int, n_layers: int) -> qml.QNode:
     
     device = qml.device("default.qubit", wires=n_qubits)
     
-    @qml.qnode(device, interface="autograd")
+    @qml.qnode(device, interface="torch")
     def dru_circuit(inputs, weights):
         """
         Data Re-Uploading quantum circuit.
@@ -122,6 +123,80 @@ def initialize_dru_weights(n_qubits: int, n_layers: int,
     return weights
 
 
+def get_dru_weights_shape(n_qubits: int, n_layers: int) -> Tuple[int, int]:
+    """
+    Get the required shape for weight parameters in the DRU classifier.
+    
+    Args:
+        n_qubits (int): Number of qubits in the circuit.
+        n_layers (int): Number of DRU layers.
+    
+    Returns:
+        Tuple[int, int]: Shape tuple (n_layers, n_qubits).
+    
+    Example:
+        >>> shape = get_dru_weights_shape(n_qubits=4, n_layers=2)
+        >>> weights = torch.randn(shape)
+        >>> print(weights.shape)  # torch.Size([2, 4])
+    """
+    return (n_layers, n_qubits)
+
+
+def initialize_dru_weights_torch(n_qubits: int, n_layers: int, 
+                                seed: Optional[int] = None) -> torch.Tensor:
+    """
+    Initialize PyTorch weights for the DRU classifier.
+    
+    Args:
+        n_qubits (int): Number of qubits in the circuit.
+        n_layers (int): Number of DRU layers.
+        seed (Optional[int]): Random seed for reproducible initialization.
+    
+    Returns:
+        torch.Tensor: Initialized weights of shape (n_layers, n_qubits).
+    
+    Example:
+        >>> weights = initialize_dru_weights_torch(n_qubits=4, n_layers=2, seed=42)
+        >>> print(weights.shape)  # torch.Size([2, 4])
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+    
+    shape = get_dru_weights_shape(n_qubits, n_layers)
+    # Initialize weights in [0, 2π] range
+    weights = torch.rand(shape) * (2 * np.pi)
+    weights.requires_grad_(True)
+    
+    return weights
+
+
+def create_dru_model(n_features: int, n_layers: int = 2) -> Tuple[qml.QNode, torch.Tensor]:
+    """
+    Create a complete Data Re-Uploading model with initialized weights.
+    
+    This is a convenience function that combines circuit creation and
+    weight initialization for quick model setup.
+    
+    Args:
+        n_features (int): Number of input features (determines n_qubits).
+        n_layers (int, optional): Number of DRU layers. Defaults to 2.
+    
+    Returns:
+        Tuple[qml.QNode, torch.Tensor]: A tuple containing:
+            - The quantum circuit function
+            - Initialized weight parameters
+    
+    Example:
+        >>> model, weights = create_dru_model(n_features=4, n_layers=3)
+        >>> features = torch.randn(4)
+        >>> prediction = model(features, weights)
+    """
+    circuit = build_dru_classifier(n_qubits=n_features, n_layers=n_layers)
+    weights = initialize_dru_weights_torch(n_qubits=n_features, n_layers=n_layers)
+    
+    return circuit, weights
+
+
 def dru_feature_dimension(n_qubits: int) -> int:
     """
     Get the feature dimension for DRU encoding.
@@ -136,3 +211,86 @@ def dru_feature_dimension(n_qubits: int) -> int:
         int: Required feature dimension
     """
     return n_qubits
+
+
+class DRUClassifier:
+    """
+    A PyTorch-compatible wrapper for the Data Re-Uploading quantum classifier.
+    
+    This class provides a scikit-learn-like interface for the quantum circuit,
+    making it easier to integrate with existing machine learning pipelines.
+    
+    Attributes:
+        n_qubits (int): Number of qubits in the quantum circuit.
+        n_layers (int): Number of DRU layers.
+        circuit (qml.QNode): The quantum circuit function.
+        weights (torch.Tensor): Trainable parameters.
+    """
+    
+    def __init__(self, n_features: int, n_layers: int = 2, seed: Optional[int] = None):
+        """
+        Initialize the Data Re-Uploading classifier.
+        
+        Args:
+            n_features (int): Number of input features.
+            n_layers (int, optional): Number of DRU layers. Defaults to 2.
+            seed (Optional[int]): Random seed for weight initialization.
+        """
+        self.n_qubits = n_features
+        self.n_layers = n_layers
+        
+        self.circuit = build_dru_classifier(n_qubits=n_features, n_layers=n_layers)
+        self.weights = initialize_dru_weights_torch(n_qubits=n_features, 
+                                                  n_layers=n_layers, seed=seed)
+    
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the quantum circuit.
+        
+        Args:
+            features (torch.Tensor): Input features of shape (batch_size, n_features)
+                or (n_features,) for single samples.
+        
+        Returns:
+            torch.Tensor: Predictions of shape (batch_size,) or scalar for single samples.
+        """
+        if len(features.shape) == 1:
+            # Single sample
+            return self.circuit(features, self.weights)
+        else:
+            # Batch processing
+            batch_size = features.shape[0]
+            predictions = torch.zeros(batch_size)
+            
+            for i in range(batch_size):
+                predictions[i] = self.circuit(features[i], self.weights)
+            
+            return predictions
+    
+    def __call__(self, features: torch.Tensor) -> torch.Tensor:
+        """Make the class callable."""
+        return self.forward(features)
+    
+    def get_params(self) -> torch.Tensor:
+        """Get the current weight parameters."""
+        return self.weights.detach().clone()
+    
+    def set_params(self, weights: torch.Tensor) -> None:
+        """Set the weight parameters."""
+        self.weights = weights.requires_grad_(True)
+    
+    def get_circuit_info(self) -> dict:
+        """
+        Get information about the quantum circuit.
+        
+        Returns:
+            dict: Dictionary containing circuit specifications.
+        """
+        return {
+            "n_qubits": self.n_qubits,
+            "n_layers": self.n_layers,
+            "n_parameters": self.weights.numel(),
+            "encoding_type": "Data Re-Uploading (repeated injection)",
+            "entanglement": "Linear CNOT chain",
+            "variational_gates": "RY rotations"
+        }

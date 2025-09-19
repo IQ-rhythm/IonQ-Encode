@@ -6,6 +6,9 @@ from torch.utils.data import TensorDataset, DataLoader
 from quantum_encodings.angle_encoding import AngleEncodingClassifier
 from quantum_encodings.amplitude_encoding import AmplitudeEncodingClassifier
 from quantum_encodings.hybrid_encoding import HybridEncodingClassifier
+from quantum_encodings.data_reuploading import DRUClassifier
+from quantum_encodings.qks import QKSClassifier
+from quantum_encodings.kernel_feature_map import KernelFeatureMapClassifier
 from training.utils import bce_loss_with_logits, compute_metrics, save_log
 
 
@@ -137,6 +140,11 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--n_layers", type=int, default=2)
+    parser.add_argument("--entanglement", type=str, default="linear",
+                        choices=["linear", "circular", "full"],
+                        help="Entanglement pattern for QKS and kernel encoders")
+    parser.add_argument("--repetitions", type=int, default=1,
+                        help="Number of repetitions for kernel feature maps")
     args = parser.parse_args()
 
     train(args)

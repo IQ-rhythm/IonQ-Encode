@@ -410,6 +410,231 @@ class QuantumKitchenSinks:
         """
 
 
+def build_qks_classifier(n_qubits: int, n_layers: int, n_features: int,
+                        entanglement_pattern: str = "linear") -> qml.QNode:
+    """
+    Build a QKS circuit optimized for binary classification.
+    
+    This differs from the general QKS circuit by:
+    1. Using learnable variational parameters alongside fixed random parameters
+    2. Returning a single logit from the last qubit
+    3. Supporting gradient-based optimization
+    
+    Args:
+        n_qubits: Number of qubits
+        n_layers: Number of layers
+        n_features: Number of input features
+        entanglement_pattern: Entanglement pattern
+    
+    Returns:
+        QKS classification circuit
+    """
+    device = qml.device("default.qubit", wires=n_qubits)
+    
+    @qml.qnode(device, interface="torch")
+    def qks_classifier_circuit(features: torch.Tensor, weights: torch.Tensor, 
+                              random_params: Dict[str, torch.Tensor]) -> float:
+        """
+        QKS classification circuit.
+        
+        Args:
+            features: Input features
+            weights: Learnable variational parameters
+            random_params: Fixed random parameters
+        
+        Returns:
+            Classification logit from Z expectation of last qubit
+        """
+        # Pad or truncate features
+        if len(features) > n_features:
+            features = features[:n_features]
+        elif len(features) < n_features:
+            padding = torch.zeros(n_features - len(features))
+            features = torch.cat([features, padding])
+        
+        # Step 1: Random data encoding
+        apply_random_data_encoding(features, random_params["data_params"], n_qubits)
+        
+        # Step 2: Mixed random + variational layers
+        for layer in range(n_layers):
+            # Fixed random rotations
+            apply_random_rotation_layer(random_params["rotation_params"][layer], n_qubits)
+            
+            # Learnable variational layer
+            apply_qks_variational_layer(weights[layer], n_qubits)
+            
+            # Random entanglement
+            apply_random_entanglement(random_params["entanglement_params"][layer], 
+                                    n_qubits, entanglement_pattern, layer)
+        
+        # Return logit from Z expectation of last qubit
+        return qml.expval(qml.PauliZ(n_qubits - 1))
+    
+    return qks_classifier_circuit
+
+
+def apply_qks_variational_layer(layer_weights: torch.Tensor, n_qubits: int) -> None:
+    """
+    Apply learnable variational layer for QKS classifier.
+    
+    Args:
+        layer_weights: Variational parameters of shape (n_qubits, 2)
+        n_qubits: Number of qubits
+    """
+    for i in range(n_qubits):
+        qml.RY(layer_weights[i, 0], wires=i)  # Learnable amplitude rotation
+        qml.RZ(layer_weights[i, 1], wires=i)  # Learnable phase rotation
+
+
+def get_qks_weights_shape(n_qubits: int, n_layers: int) -> Tuple[int, int, int]:
+    """
+    Get the required shape for QKS classifier weights.
+    
+    Args:
+        n_qubits: Number of qubits
+        n_layers: Number of layers
+    
+    Returns:
+        Weight shape (n_layers, n_qubits, 2)
+    """
+    return (n_layers, n_qubits, 2)
+
+
+def initialize_qks_weights(n_qubits: int, n_layers: int, 
+                          seed: Optional[int] = None) -> torch.Tensor:
+    """
+    Initialize learnable weights for QKS classifier.
+    
+    Args:
+        n_qubits: Number of qubits
+        n_layers: Number of layers
+        seed: Random seed
+    
+    Returns:
+        Initialized weights
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+    
+    shape = get_qks_weights_shape(n_qubits, n_layers)
+    weights = torch.randn(shape) * (np.pi / 4)
+    weights.requires_grad_(True)
+    
+    return weights
+
+
+def create_qks_model(n_features: int, n_layers: int = 2, 
+                    entanglement_pattern: str = "linear") -> Tuple[qml.QNode, torch.Tensor, Dict[str, torch.Tensor]]:
+    """
+    Create a complete QKS classification model.
+    
+    Args:
+        n_features: Number of input features
+        n_layers: Number of layers
+        entanglement_pattern: Entanglement pattern
+    
+    Returns:
+        Tuple of (circuit, weights, random_params)
+    """
+    n_qubits = n_features
+    circuit = build_qks_classifier(n_qubits, n_layers, n_features, entanglement_pattern)
+    weights = initialize_qks_weights(n_qubits, n_layers)
+    random_params = generate_random_parameters(n_qubits, n_layers, n_features)
+    
+    return circuit, weights, random_params
+
+
+class QKSClassifier:
+    """
+    A PyTorch-compatible wrapper for QKS quantum classifier.
+    
+    This class provides a scikit-learn-like interface for QKS circuits
+    with both fixed random parameters and learnable variational parameters.
+    
+    Attributes:
+        n_qubits (int): Number of qubits in the quantum circuit.
+        n_layers (int): Number of QKS layers.
+        circuit (qml.QNode): The quantum circuit function.
+        weights (torch.Tensor): Trainable variational parameters.
+        random_params (Dict[str, torch.Tensor]): Fixed random parameters.
+    """
+    
+    def __init__(self, n_features: int, n_layers: int = 2, 
+                 entanglement_pattern: str = "linear", seed: Optional[int] = None):
+        """
+        Initialize the QKS classifier.
+        
+        Args:
+            n_features: Number of input features
+            n_layers: Number of QKS layers
+            entanglement_pattern: Entanglement pattern
+            seed: Random seed for initialization
+        """
+        self.n_qubits = n_features
+        self.n_layers = n_layers
+        self.entanglement_pattern = entanglement_pattern
+        
+        self.circuit = build_qks_classifier(n_features, n_layers, n_features, entanglement_pattern)
+        self.weights = initialize_qks_weights(n_features, n_layers, seed)
+        self.random_params = generate_random_parameters(n_features, n_layers, n_features, seed=seed)
+    
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass through the QKS circuit.
+        
+        Args:
+            features: Input features of shape (batch_size, n_features) or (n_features,)
+        
+        Returns:
+            Predictions of shape (batch_size,) or scalar for single samples
+        """
+        if len(features.shape) == 1:
+            # Single sample
+            return self.circuit(features, self.weights, self.random_params)
+        else:
+            # Batch processing
+            batch_size = features.shape[0]
+            predictions = torch.zeros(batch_size)
+            
+            for i in range(batch_size):
+                predictions[i] = self.circuit(features[i], self.weights, self.random_params)
+            
+            return predictions
+    
+    def __call__(self, features: torch.Tensor) -> torch.Tensor:
+        """Make the class callable."""
+        return self.forward(features)
+    
+    def get_params(self) -> torch.Tensor:
+        """Get the current weight parameters."""
+        return self.weights.detach().clone()
+    
+    def set_params(self, weights: torch.Tensor) -> None:
+        """Set the weight parameters."""
+        self.weights = weights.requires_grad_(True)
+    
+    def get_circuit_info(self) -> dict:
+        """
+        Get information about the quantum circuit.
+        
+        Returns:
+            dict: Dictionary containing circuit specifications.
+        """
+        complexity = benchmark_qks_complexity(
+            self.n_qubits, self.n_layers, self.n_qubits, self.entanglement_pattern
+        )
+        
+        return {
+            "n_qubits": self.n_qubits,
+            "n_layers": self.n_layers,
+            "n_parameters": self.weights.numel(),
+            "encoding_type": "Quantum Kitchen Sinks (random features)",
+            "entanglement": f"{self.entanglement_pattern} pattern",
+            "variational_gates": "RY, RZ rotations",
+            "complexity_metrics": complexity
+        }
+
+
 class EnsembleQKS:
     """
     Ensemble of Quantum Kitchen Sinks for improved approximation.
