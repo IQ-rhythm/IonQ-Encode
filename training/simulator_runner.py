@@ -39,31 +39,25 @@ def build_model(args, n_features):
             n_layers=args.n_layers,
             entanglement_strategy="linear"
         )
-    elif encoder_name == "dru":
-        return DRUClassifier(n_features=n_features, n_layers=args.n_layers)
-    elif encoder_name == "qks":
-        entanglement_pattern = getattr(args, 'entanglement', 'linear')
-        return QKSClassifier(n_features=n_features, n_layers=args.n_layers, 
-                           entanglement_pattern=entanglement_pattern)
-    elif encoder_name == "kernel_zz":
-        repetitions = getattr(args, 'repetitions', 1)
-        entanglement = getattr(args, 'entanglement', 'linear')
-        return KernelFeatureMapClassifier(n_features=n_features, feature_map_type="zz",
-                                        repetitions=repetitions, entanglement=entanglement)
-    elif encoder_name == "kernel_iqp":
-        repetitions = getattr(args, 'repetitions', 1)
-        return KernelFeatureMapClassifier(n_features=n_features, feature_map_type="iqp",
-                                        repetitions=repetitions)
+    # elif encoder_name == "qks":
+        # QKS: Quantum Kitchen Sink
+        # n_qubits = n_features
+        # return EnsembleQKS(n_qubits=n_qubits, n_layers=args.n_layers, n_features=n_features)
+    # elif encoder_name == "dru":
+    #     # DRU: Data Re-Uploading
+    #     n_qubits = n_features
+    #     return DRUClassifier(n_qubits=n_qubits, n_layers=args.n_layers)
     else:
         raise ValueError(f"Unknown encoder: {encoder_name}")
+
 
 
 def train(args):
     # === Load dataset ===
     x_train, y_train, x_test, y_test = load_npz_dataset(args.dataset)
     # For quick testing, you can uncomment the following lines to use a smaller subset
-    # x_train, y_train = x_train[:100], y_train[:100]
-    # x_test, y_test   = x_test[:20], y_test[:20]
+    x_train, y_train = x_train[:100], y_train[:100]
+    x_test, y_test   = x_test[:20], y_test[:20]
 
     # Only binary classification supported for now
     if len(torch.unique(y_train)) > 2:
@@ -141,8 +135,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, required=True,
                         help="Path to .npz dataset (e.g., data/processed/fashion_mnist_pca16_T2.npz)")
     parser.add_argument("--encoder", type=str, default="angle",
-                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid", 
-                               "dru", "qks", "kernel_zz", "kernel_iqp"])
+                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid", "qks", "dru"],)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
