@@ -28,8 +28,7 @@ def build_model(args, n_features):
     elif encoder_name == "amplitude_approx":
         return AmplitudeEncodingClassifier(n_features=n_features, n_layers=args.n_layers, method="approximate")
     elif encoder_name == "hybrid":
-        # 여기서 n_angle_features와 n_amplitude_log를 지정
-        n_angle_features = min(8, n_features)  # 예시: 8개 혹은 입력 차원에 맞게
+        n_angle_features = min(8, n_features)
         n_amplitude_log = int(np.ceil(np.log2(n_features - n_angle_features)))
         return HybridEncodingClassifier(
             n_angle_features=n_angle_features,
@@ -37,16 +36,25 @@ def build_model(args, n_features):
             n_layers=args.n_layers,
             entanglement_strategy="linear"
         )
+    # elif encoder_name == "qks":
+        # QKS: Quantum Kitchen Sink
+        # n_qubits = n_features
+        # return EnsembleQKS(n_qubits=n_qubits, n_layers=args.n_layers, n_features=n_features)
+    # elif encoder_name == "dru":
+    #     # DRU: Data Re-Uploading
+    #     n_qubits = n_features
+    #     return DRUClassifier(n_qubits=n_qubits, n_layers=args.n_layers)
     else:
         raise ValueError(f"Unknown encoder: {encoder_name}")
+
 
 
 def train(args):
     # === Load dataset ===
     x_train, y_train, x_test, y_test = load_npz_dataset(args.dataset)
     # For quick testing, you can uncomment the following lines to use a smaller subset
-    # x_train, y_train = x_train[:100], y_train[:100]
-    # x_test, y_test   = x_test[:20], y_test[:20]
+    x_train, y_train = x_train[:100], y_train[:100]
+    x_test, y_test   = x_test[:20], y_test[:20]
 
     # Only binary classification supported for now
     if len(torch.unique(y_train)) > 2:
@@ -124,7 +132,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, required=True,
                         help="Path to .npz dataset (e.g., data/processed/fashion_mnist_pca16_T2.npz)")
     parser.add_argument("--encoder", type=str, default="angle",
-                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid"])
+                        choices=["angle", "amplitude_exact", "amplitude_approx", "hybrid", "qks", "dru"],)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
